@@ -1,0 +1,2 @@
+SUBSYSTEM=="block", KERNEL=="loop*", ATTR{size}=="32768", SYMLINK+="robot_lidar", MODE="0660", GROUP="dialout"
+SUBSYSTEM=="block", KERNEL=="loop*", ATTR{size}=="49152", SYMLINK+="robot_imu", MODE="0660", GROUP="dialout"
