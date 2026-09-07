@@ -62,7 +62,18 @@ class CoordinateChain:
         root 에 연결되어 있지 않으면 KeyError.
         """
         # TODO: 문제 6-1
-        raise NotImplementedError("_path_to_root 를 구현하세요")
+        if frame not in self.frames():
+            raise KeyError(f"등록되지 않은 프레임입니다: {frame}")
+            
+        path = [frame]
+        current = frame
+        while current != self.root:
+            if current not in self._parent:
+                raise KeyError(f"프레임 '{current}'이(가) root 에 연결되어 있지 않습니다.")
+            current = self._parent[current]
+            path.append(current)
+            
+        return path
 
     def T_from_root(self, frame: str) -> np.ndarray:
         """root 기준 frame 의 자세 T(root <- frame).
@@ -72,7 +83,18 @@ class CoordinateChain:
             T(base<-camera) = T(base<-link) @ T(link<-camera)
         """
         # TODO: 문제 6-1
-        raise NotImplementedError("T_from_root 를 구현하세요")
+        path = self._path_to_root(frame)  # [frame, ..., root]
+        
+        # 최상위 root에서 자신으로 내려오는 변환 행렬 누적 연산
+        # 역순으로 올라가며 곱해 나감: T(root <- frame) = T(root<-p1) @ T(p1<-p2) ... @ T(pn<-frame)
+        T_accum = np.eye(4, dtype=float)
+        for i in range(len(path) - 1, 0, -1):
+            parent = path[i]
+            child = path[i - 1]
+            T_accum = T_accum @ self.get(parent, child)
+            
+        return T_accum
+
 
     def T(self, target: str, source: str) -> np.ndarray:
         """source 좌표를 target 좌표로 바꾸는 변환 T(target <- source).
@@ -80,7 +102,13 @@ class CoordinateChain:
         힌트: T(target<-source) = inv(T(root<-target)) @ T(root<-source)
         """
         # TODO: 문제 6-1
-        raise NotImplementedError("T 를 구현하세요")
+        T_root_source = self.T_from_root(source)
+        T_root_target = self.T_from_root(target)
+        
+        # transform 모듈 내 명세 규칙에 따른 전용 역행렬 구 공식 함수 적용
+        T_target_root = inv_T(T_root_target)
+        
+        return T_target_root @ T_root_source
 
     def transform(self, target: str, source: str, P, w: float = 1.0) -> np.ndarray:
         """source 프레임의 점(w=1) 또는 방향(w=0)을 target 프레임으로 변환한다.
@@ -88,12 +116,18 @@ class CoordinateChain:
         (3,) 와 (N,3) 을 모두 지원해야 하고, **반복문을 쓰지 않는다**.
         """
         # TODO: 문제 6-2
-        raise NotImplementedError("transform 을 구현하세요")
+        T_matrix = self.T(target, source)
+        # transform.py 모듈 내에서 구현한 배치 지원 연산 적극 재사용
+        return transform_points(T_matrix, P, w=w)
 
     def axis_angle(self, target: str, source: str):
         """T(target <- source) 의 회전 부분에서 회전축과 회전각을 복원한다."""
         # TODO: 문제 6-4
-        raise NotImplementedError("axis_angle 을 구현하세요")
+        T_matrix = self.T(target, source)
+        R = T_matrix[0:3, 0:3]
+        # rotation.py 에서 고유값 분해 기반으로 정교하게 구현한 복원 함수 활용
+        return axis_angle_from_matrix(R)
+
 
 
 def default_chain() -> CoordinateChain:
@@ -109,7 +143,25 @@ def default_chain() -> CoordinateChain:
     #   T_base_link   = make_T(rot_z(...), [...])
     #   T_link_camera = make_T(rot_y(...) @ rot_x(...), [...])
     #   return CoordinateChain("base").add(...).add(...)
-    raise NotImplementedError("default_chain 을 구현하세요")
+    # 22.5도 및 67.5도를 라디안으로 변환
+    rad_22_5 = np.radians(22.5)
+    rad_67_5 = np.radians(67.5)
+    
+    # base -> link 동차 변환 행렬 구성
+    R_base_link = rot_z(rad_22_5)
+    t_base_link = np.array([0.35, 0.05, 0.45], dtype=float)
+    T_base_link = make_T(R_base_link, t_base_link)
+    
+    # link -> camera 동차 변환 행렬 구성 (y축 먼저 곱함 명세 준수)
+    R_link_camera = rot_y(-rad_22_5) @ rot_x(rad_67_5)
+    t_link_camera = np.array([0.12, 0.04, 0.18], dtype=float)
+    T_link_camera = make_T(R_link_camera, t_link_camera)
+    
+    # 체인 오브젝트 빌드 및 구성 요소 순차 링크 등록
+    chain = CoordinateChain("base")
+    chain.add("base", "link", T_base_link)
+    chain.add("link", "camera", T_link_camera)
+    return chain
 
 
 def camera_point_to_base(p_cam, chain: CoordinateChain | None = None) -> np.ndarray:
@@ -118,10 +170,14 @@ def camera_point_to_base(p_cam, chain: CoordinateChain | None = None) -> np.ndar
     chain 이 None 이면 default_chain() 을 쓴다.
     """
     # TODO: 문제 6-1
-    raise NotImplementedError("camera_point_to_base 를 구현하세요")
+    if chain is None:
+        chain = default_chain()
+    return chain.transform(target="base", source="camera", P=p_cam, w=1.0)
 
 
 def base_point_to_camera(p_base, chain: CoordinateChain | None = None) -> np.ndarray:
     """base 기준 좌표 -> 카메라 기준 좌표. 왕복 검증(문제 6-2)에 쓴다."""
     # TODO: 문제 6-2
-    raise NotImplementedError("base_point_to_camera 를 구현하세요")
+    if chain is None:
+        chain = default_chain()
+    return chain.transform(target="camera", source="base", P=p_base, w=1.0)
