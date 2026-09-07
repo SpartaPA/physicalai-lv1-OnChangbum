@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://ros.org" schematypens="http://w3.org"?>
+<package format="3">
+  <name>turtle_cpp</name>
+  <version>0.0.0</version>
+  <description>ROS2 C++ Package for turtlesim control and monitoring</description>
+  <maintainer email="dhsckdqja@gmail.com">pa4</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>turtlesim</depend>
+  <depend>turtle_interfaces</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

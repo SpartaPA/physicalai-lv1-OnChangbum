@@ -1,0 +1,7 @@
+/turtle_distance_publisher:
+  ros__parameters:
+    publish_rate: 15.0
+
+/turtle_distance_subscriber:
+  ros__parameters:
+    warn_distance: 3.5
