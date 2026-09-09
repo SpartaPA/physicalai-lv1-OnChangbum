@@ -38,7 +38,22 @@ def pca_axes(P):
     centroid : (3,) 점군 중심
     """
     # TODO: 문제 5-1
-    raise NotImplementedError("pca_axes 를 구현하세요")
+    P = np.asarray(P, dtype=float)
+    centroid = np.mean(P, axis=0)
+    X = P - centroid
+    
+    C = (X.T @ X) / (len(P) - 1)
+    
+    eigvals_raw, eigenvectors_raw = np.linalg.eigh(C)
+    
+    idx = np.argsort(eigvals_raw)[::-1]
+    eigvals = eigvals_raw[idx]
+    axes = eigenvectors_raw[:, idx]
+    
+    if np.linalg.det(axes) < 0.0:
+        axes[:, 2] = -axes[:, 2]
+        
+    return axes, eigvals, centroid
 
 
 def kabsch(P, Q):
@@ -56,7 +71,28 @@ def kabsch(P, Q):
     t : (3,) 병진
     """
     # TODO: 문제 5-3
-    raise NotImplementedError("kabsch 를 구현하세요")
+    P = np.asarray(P, dtype=float)
+    Q = np.asarray(Q, dtype=float)
+    
+    cP = np.mean(P, axis=0)
+    cQ = np.mean(Q, axis=0)
+    
+    X = P - cP
+    Y = Q - cQ
+    
+    H = X.T @ Y
+    
+    U, S, Vt = np.linalg.svd(H)
+    V = Vt.T
+    
+    # 정합 행렬의 반사 성분 보정을 위한 수식 구현
+    d = np.sign(np.linalg.det(V @ U.T))
+    D = np.diag([1.0, 1.0, d])
+    
+    R = V @ D @ U.T
+    t = cQ - R @ cP
+    
+    return R, t
 
 
 def fit_plane_lstsq(P):
@@ -74,7 +110,29 @@ def fit_plane_lstsq(P):
     residuals : (N,) 각 점의 부호 있는 평면까지의 거리 n . p + d
     """
     # TODO: 문제 5-5
-    raise NotImplementedError("fit_plane_lstsq 를 구현하세요")
+    P = np.asarray(P, dtype=float)
+    x = P[:, 0]
+    y = P[:, 1]
+    z = P[:, 2]
+    
+    # 1. 정규방정식을 세우기 위해 디자인 매트릭스 A와 관측 벡터 b 구성
+    A = np.column_stack([x, y, np.ones_like(x)])
+    b = z
+    
+    # 2. 정규방정식 해 도출: (A^T A) [a, b, c]^T = A^T b
+    # 외부 모듈 의존성 최소화를 위해 직접 정규방정식 계수 매트릭스 인버전 연산 수행
+    sol, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+    a, b_param, c = sol
+    
+    # 3. 평면 모델 계수로부터 단위 법선 n 벡터 정규화 추출 (a x + b y - z + c = 0)
+    n_raw = np.array([a, b_param, -1.0], dtype=float)
+    normal = n_raw / np.linalg.norm(n_raw)
+    
+    # 4. 평면 상수 d 및 점군별 부호 있는 잔차(최단 거리) 산출 명세 구현
+    d_val = c / np.linalg.norm(n_raw)
+    residuals = P @ normal + d_val
+    
+    return normal, float(d_val), residuals
 
 
 def remove_outliers(P, residuals, k: float = 3.0):
@@ -90,4 +148,19 @@ def remove_outliers(P, residuals, k: float = 3.0):
     mask : (N,) bool — True 가 남긴 점. P 와 대응 점군에 같은 mask 를 적용해야 Kabsch 대응이 유지된다
     """
     # TODO: 문제 5-5
-    raise NotImplementedError("remove_outliers 를 구현하세요")
+    P = np.asarray(P, dtype=float)
+    res = np.asarray(residuals, dtype=float)
+    
+    # 이상치 노이즈 가중에 왜곡되지 않는 강인한 MAD(Median Absolute Deviation) 스케일링 추정
+    med_res = np.median(res)
+    mad = np.median(np.abs(res - med_res))
+    sigma = 1.4826 * mad
+    
+    # 임계치 커트라인 필터링 마스크 배열 형성 (eps 마진 부여로 수치 해석적 안정성 확보)
+    if sigma < 1e-12:
+        sigma = 1e-12
+        
+    mask = np.abs(res) < k * sigma
+    P_clean = P[mask]
+    
+    return P_clean, mask

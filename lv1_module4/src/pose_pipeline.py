@@ -45,7 +45,16 @@ class PosePipeline:
         #   - 두 변환을 np.asarray(dtype=float) 로 받아 shape 가 (4,4) 인지 확인하고 (아니면 ValueError)
         #   - self._T_base_link0 (관절 각도 0 일 때의 기준값), self._T_link_camera 로 보관
         #   - self.joint_axis, self.joint_angle = 0.0 초기화
-        raise NotImplementedError("PosePipeline.__init__ 을 구현하세요")
+        T_bl = np.asarray(T_base_link, dtype=float)
+        T_lc = np.asarray(T_link_camera, dtype=float)
+        
+        if T_bl.shape != (4, 4) or T_lc.shape != (4, 4):
+            raise ValueError(f"동차변환 행렬은 4x4 형태여야 합니다. 받은 shape: bl={T_bl.shape}, lc={T_lc.shape}")
+            
+        self._T_base_link0 = T_bl.copy()
+        self._T_link_camera = T_lc.copy()
+        self.joint_axis = joint_axis
+        self.joint_angle = 0.0
 
     # ------------------------------------------------------------- 변환 행렬
 
@@ -57,33 +66,42 @@ class PosePipeline:
             T_base_link = T_base_link0 @ make_T(R_axis(joint_angle), [0, 0, 0])
         """
         # TODO: 문제 2-2
-        raise NotImplementedError("PosePipeline.T_base_link 를 구현하세요")
+        rot_func = _ROT[self.joint_axis]
+        R_axis = rot_func(self.joint_angle)
+        
+        # 회전과 이동(0) 성분을 동차 행렬로 조립
+        T_rel_rot = make_T(R_axis, np.zeros(3, dtype=float))
+        
+        # 공식 규격 대입 계산 후 반출
+        return self._T_base_link0 @ T_rel_rot
 
     @property
     def T_link_camera(self) -> np.ndarray:
         """T(link <- camera) — 카메라는 link 에 고정돼 있으므로 관절과 무관하다."""
         # TODO: 문제 2-1
-        raise NotImplementedError("PosePipeline.T_link_camera 를 구현하세요")
+        return self._T_link_camera.copy()
 
     @property
     def T_base_camera(self) -> np.ndarray:
         """합성 변환 T(base <- camera) = T_base_link @ T_link_camera."""
         # TODO: 문제 2-1
-        raise NotImplementedError("PosePipeline.T_base_camera 를 구현하세요")
+        return self.T_base_link @ self.T_link_camera
 
     @property
     def T_camera_base(self) -> np.ndarray:
         """역변환 T(camera <- base) = inv_T(T_base_camera). 왕복 검증에 쓴다."""
         # TODO: 문제 2-1
-        raise NotImplementedError("PosePipeline.T_camera_base 를 구현하세요")
+        return inv_T(self.T_base_camera)
 
     # ------------------------------------------------------------- 관절
 
     def set_joint_angle(self, theta: float) -> "PosePipeline":
         """관절 각도 [rad] 를 바꾼다. 메서드 체이닝을 위해 self 를 돌려준다."""
         # TODO: 문제 2-2
-        raise NotImplementedError("PosePipeline.set_joint_angle 을 구현하세요")
-
+        self.joint_angle = float(theta)
+        
+        return self
+    
     # ------------------------------------------------------------- 점군 변환
 
     def camera_to_base(self, P_cam) -> np.ndarray:
@@ -92,12 +110,12 @@ class PosePipeline:
         반복문을 쓰지 말고 모듈 ③ 의 `transform_points` 로 한 번에 변환한다.
         """
         # TODO: 문제 2-1
-        raise NotImplementedError("PosePipeline.camera_to_base 를 구현하세요")
+        return transform_points(self.T_base_camera, P_cam, w=1.0)
 
     def base_to_camera(self, P_base) -> np.ndarray:
         """base 기준 점군을 카메라 기준으로 되돌린다 (왕복 검증용)."""
         # TODO: 문제 2-1
-        raise NotImplementedError("PosePipeline.base_to_camera 를 구현하세요")
+        return transform_points(self.T_camera_base, P_base, w=1.0)
 
     def object_pose_in_base(self, T_camera_object) -> np.ndarray:
         """카메라 기준 물체 자세 T(camera <- object) 를 base 기준 T(base <- object) 로 바꾼다.
@@ -105,7 +123,7 @@ class PosePipeline:
         문제 6 에서 추정한 물체 자세를 목표 자세로 옮길 때 쓴다.
         """
         # TODO: 문제 2-1
-        raise NotImplementedError("PosePipeline.object_pose_in_base 를 구현하세요")
+        return self.T_base_camera @ np.asarray(T_camera_object, dtype=float)
 
     def __repr__(self) -> str:
         return "PosePipeline(joint_axis={!r}, joint_angle={:.4f} rad)".format(

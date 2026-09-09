@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 __all__ = ["linear_interp", "cubic_spline_interp", "quintic_profile", "finite_diff"]
 
@@ -26,7 +27,18 @@ def linear_interp(t_wp, q_wp, t) -> np.ndarray:
     위치는 이어지지만 경유점에서 속도가 불연속(꺾임)이다.
     """
     # TODO: 문제 4-1
-    raise NotImplementedError("linear_interp 를 구현하세요")
+    t_wp = np.asarray(t_wp, dtype=float)
+    q_wp = np.asarray(q_wp, dtype=float)
+    t = np.asarray(t, dtype=float)
+    
+    if q_wp.ndim == 1:
+        return np.interp(t, t_wp, q_wp)
+    else:
+        D = q_wp.shape[1]
+        result = np.zeros((len(t), D), dtype=float)
+        for d in range(D):
+            result[:, d] = np.interp(t, t_wp, q_wp[:, d])
+        return result
 
 
 def cubic_spline_interp(t_wp, q_wp, t, bc_type: str = "natural") -> np.ndarray:
@@ -35,7 +47,13 @@ def cubic_spline_interp(t_wp, q_wp, t, bc_type: str = "natural") -> np.ndarray:
     bc_type : 양끝 경계 조건. "natural" (양끝 가속도 0) 또는 "clamped" (양끝 속도 0).
     """
     # TODO: 문제 4-1
-    raise NotImplementedError("cubic_spline_interp 를 구현하세요")
+    t_wp = np.asarray(t_wp, dtype=float)
+    q_wp = np.asarray(q_wp, dtype=float)
+    t = np.asarray(t, dtype=float)
+    
+    # SciPy CubicSpline을 활용하여 축방향(axis=0) 보간 수행
+    cs = CubicSpline(t_wp, q_wp, axis=0, bc_type=bc_type)
+    return cs(t)
 
 
 def quintic_profile(t, t0: float, tf: float, q0, qf,
@@ -57,7 +75,34 @@ def quintic_profile(t, t0: float, tf: float, q0, qf,
     q, qd, qdd : 위치, 속도, 가속도 (해석적 미분. 유한차분이 아니다)
     """
     # TODO: 문제 4-4
-    raise NotImplementedError("quintic_profile 을 구현하세요")
+    t = np.asarray(t, dtype=float)
+    q0 = np.asarray(q0, dtype=float)
+    qf = np.asarray(qf, dtype=float)
+    
+    T = tf - t0
+    if np.isclose(T, 0.0):
+        raise ValueError("tf와 t0는 같을 수 없습니다.")
+        
+    # 시간 정규화 및 다항식 결합을 위한 해석적 도함수 설계
+    # 기본형 닫힌 꼴 수식 확장 및 속도/가속도 체인룰 반영 미분 유도
+    tau = (t - t0) / T
+    
+    # 경계 속도와 가속도가 모두 0인 정규화 5차 준수 프로파일
+    s = 10.0 * tau**3 - 15.0 * tau**4 + 6.0 * tau**5
+    sd = (30.0 * tau**2 - 60.0 * tau**3 + 30.0 * tau**4) / T
+    sdd = (60.0 * tau - 180.0 * tau**2 + 120.0 * tau**3) / (T**2)
+    
+    # q0, qf의 형상(스칼라 또는 다차원 벡터)에 유연하게 대응하도록 외부곱 브로드캐스팅 처리
+    if q0.ndim == 0:
+        q = q0 + (qf - q0) * s
+        qd = (qf - q0) * sd
+        qdd = (qf - q0) * sdd
+    else:
+        q = q0 + np.outer(s, (qf - q0))
+        qd = np.outer(sd, (qf - q0))
+        qdd = np.outer(sdd, (qf - q0))
+        
+    return q, qd, qdd
 
 
 def finite_diff(y, t) -> np.ndarray:
@@ -67,4 +112,6 @@ def finite_diff(y, t) -> np.ndarray:
     속도 = finite_diff(q, t),  가속도 = finite_diff(속도, t)
     """
     # TODO: 문제 4-2
-    raise NotImplementedError("finite_diff 를 구현하세요")
+    y = np.asarray(y, dtype=float)
+    t = np.asarray(t, dtype=float)
+    return np.gradient(y, t, axis=0)

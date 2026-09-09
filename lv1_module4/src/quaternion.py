@@ -31,7 +31,42 @@ def matrix_to_quaternion(R) -> np.ndarray:
     반환값은 반드시 정규화하고, w >= 0 이 되도록 부호를 맞춘다 (비교가 편해진다).
     """
     # TODO: 문제 3-1
-    raise NotImplementedError("matrix_to_quaternion 을 구현하세요")
+    R = np.asarray(R, dtype=float)
+    t = np.trace(R)
+    
+    if t > 0.0:
+        s = 2.0 * np.sqrt(1.0 + t)
+        w = 0.25 * s
+        x = (R[2, 1] - R[1, 2]) / s
+        y = (R[0, 2] - R[2, 0]) / s
+        z = (R[1, 0] - R[0, 1]) / s
+    else:
+        if R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
+            s = 2.0 * np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2])
+            w = (R[2, 1] - R[1, 2]) / s
+            x = 0.25 * s
+            y = (R[0, 1] + R[1, 0]) / s
+            z = (R[0, 2] + R[2, 0]) / s
+        elif R[1, 1] > R[2, 2]:
+            s = 2.0 * np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2])
+            w = (R[0, 2] - R[2, 0]) / s
+            x = (R[0, 1] + R[1, 0]) / s
+            y = 0.25 * s
+            z = (R[1, 2] + R[2, 1]) / s
+        else:
+            s = 2.0 * np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1])
+            w = (R[1, 0] - R[0, 1]) / s
+            x = (R[0, 2] + R[2, 0]) / s
+            y = (R[1, 2] + R[2, 1]) / s
+            z = 0.25 * s
+            
+    q = np.array([x, y, z, w], dtype=float)
+    q /= np.linalg.norm(q)
+    
+    if q[3] < 0.0:
+        q = -q
+        
+    return q
 
 
 def quaternion_to_matrix(q) -> np.ndarray:
@@ -44,7 +79,16 @@ def quaternion_to_matrix(q) -> np.ndarray:
     입력이 정확히 단위가 아닐 수 있으므로 먼저 정규화한다. q 와 -q 는 같은 R 을 준다.
     """
     # TODO: 문제 3-1
-    raise NotImplementedError("quaternion_to_matrix 를 구현하세요")
+    q = np.asarray(q, dtype=float)
+    q = q / np.linalg.norm(q)
+    x, y, z, w = q
+    
+    return np.array([
+        [1.0 - 2.0*(y**2 + z**2),       2.0*(x*y - z*w),       2.0*(x*z + y*w)],
+        [      2.0*(x*y + z*w), 1.0 - 2.0*(x**2 + z**2),       2.0*(y*z - x*w)],
+        [      2.0*(x*z - y*w),       2.0*(y*z + x*w), 1.0 - 2.0*(x**2 + y**2)]
+    ], dtype=float)
+
 
 
 def quat_angle(q0, q1) -> float:
@@ -53,7 +97,13 @@ def quat_angle(q0, q1) -> float:
         angle = 2 * arccos(|q0 . q1|)
     """
     # TODO: 문제 3-2 (slerp 안에서 재사용)
-    raise NotImplementedError("quat_angle 을 구현하세요")
+    q0 = np.asarray(q0, dtype=float) / np.linalg.norm(q0)
+    q1 = np.asarray(q1, dtype=float) / np.linalg.norm(q1)
+    
+    dot_val = np.abs(np.dot(q0, q1))
+    dot_val = np.clip(dot_val, -1.0, 1.0)
+    
+    return float(2.0 * np.arccos(dot_val))
 
 
 def slerp(q0, q1, t: float, eps: float = 1e-8) -> np.ndarray:
@@ -71,7 +121,38 @@ def slerp(q0, q1, t: float, eps: float = 1e-8) -> np.ndarray:
     반환값은 단위 쿼터니언이어야 한다. t = 0 이면 q0, t = 1 이면 (부호를 맞춘) q1.
     """
     # TODO: 문제 3-2 · 3-5
-    raise NotImplementedError("slerp 를 구현하세요")
+    q0 = np.asarray(q0, dtype=float) / np.linalg.norm(q0)
+    q1 = np.asarray(q1, dtype=float) / np.linalg.norm(q1)
+    
+    d = np.dot(q0, q1)
+    
+    if d < 0.0:
+        q1 = -q1
+        d = -d
+        
+    d = np.clip(d, -1.0, 1.0)
+    
+    if d > 1.0 - eps:
+        q_lerp = (1.0 - t) * q0 + t * q1
+        q_res = q_lerp / np.linalg.norm(q_lerp)
+        if q_res[3] < 0.0:
+            q_res = -q_res
+        return q_res
+        
+    omega = np.arccos(d)
+    sin_omega = np.sin(omega)
+    
+    w0 = np.sin((1.0 - t) * omega) / sin_omega
+    w1 = np.sin(t * omega) / sin_omega
+    
+    q_slerp = w0 * q0 + w1 * q1
+    q_res = q_slerp / np.linalg.norm(q_slerp)
+    
+    if q_res[3] < 0.0:
+        q_res = -q_res
+        
+    return q_res
+
 
 
 def lerp_quat(q0, q1, t: float, normalize: bool = False) -> np.ndarray:
@@ -83,4 +164,18 @@ def lerp_quat(q0, q1, t: float, normalize: bool = False) -> np.ndarray:
     벗어나는지 관찰하는 데 쓴다. normalize=True 이면 정규화한다 (NLERP).
     """
     # TODO: 문제 3-4
-    raise NotImplementedError("lerp_quat 를 구현하세요")
+    q0 = np.asarray(q0, dtype=float) / np.linalg.norm(q0)
+    q1 = np.asarray(q1, dtype=float) / np.linalg.norm(q1)
+    
+    # 짧은 호 선택을 위한 부호 뒤집기
+    if np.dot(q0, q1) < 0.0:
+        q1 = -q1
+        
+    q_lerp = (1.0 - t) * q0 + t * q1
+    
+    if normalize:
+        q_lerp /= np.linalg.norm(q_lerp)
+        if q_lerp[3] < 0.0:  # w >= 0 부호 통일 규약 유지
+            q_lerp = -q_lerp
+            
+    return q_lerp

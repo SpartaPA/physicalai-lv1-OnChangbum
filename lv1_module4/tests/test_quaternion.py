@@ -42,7 +42,11 @@ def q_pair():
 @pytest.mark.parametrize("t", TS)
 def test_slerp_is_unit_norm(q_pair, t):
     # TODO: slerp(q0, q1, t) 의 노름이 1 인지 검사
-    raise NotImplementedError("test_slerp_is_unit_norm 을 작성하세요")
+    q0, q1 = q_pair
+    q_interpolated = slerp(q0, q1, t)
+    
+    # 생성된 보간 쿼터니언의 크기가 유클리드 노름 1로 정규화되어 유지되는지 단언
+    assert np.isclose(np.linalg.norm(q_interpolated), 1.0)
 
 
 # --- 2. t = 0 / 1 에서 시작·목표 자세 -----------------------------------------
@@ -50,19 +54,42 @@ def test_slerp_is_unit_norm(q_pair, t):
 def test_slerp_endpoints(q_pair):
     # TODO: slerp(q0, q1, 0) 이 q0 과, slerp(q0, q1, 1) 이 q1 과 같은 회전인지 검사
     #       (부호가 다를 수 있으므로 회전행렬로 비교하거나 |q . q_ref| == 1 로 비교)
-    raise NotImplementedError("test_slerp_endpoints 를 작성하세요")
+    q0, q1 = q_pair
+    
+    q_at_0 = slerp(q0, q1, 0.0)
+    q_at_1 = slerp(q0, q1, 1.0)
+    
+    # 규약에 명시된 |q . q_ref| == 1 조건을 반영하여 부호 독립적 자세 동치성 단언
+    assert np.isclose(np.abs(np.dot(q_at_0, q0)), 1.0)
+    assert np.isclose(np.abs(np.dot(q_at_1, q1)), 1.0)
 
 
 # --- 여기부터는 추가 테스트 (권장) -------------------------------------------
 #
-# 예) def test_matrix_quaternion_roundtrip(rng):
+def test_matrix_quaternion_roundtrip(rng):
 #         """무작위 회전 50개: R -> q -> R 이 원래 행렬로 돌아오는가."""
+    for _ in range(50):
+        axis = rng.normal(size=3)
+        angle = rng.uniform(0.0, np.pi)
+        R_orig = rodrigues(axis, angle)
+        
+        q = matrix_to_quaternion(R_orig)
+        R_back = quaternion_to_matrix(q)
+        
+        assert np.allclose(R_orig, R_back)
 #
 # 예) def test_slerp_matches_scipy(q_pair):
 #         """scipy.spatial.transform.Slerp 와 회전행렬 기준으로 일치하는가."""
 #
-# 예) def test_slerp_nearly_identical_poses(q_pair):
+def test_slerp_nearly_identical_poses(q_pair):
 #         """거의 같은 두 자세에서 NaN 이 나오지 않는가."""
+    q0, _ = q_pair
+    # 강제 미소 변위 오프셋 생성
+    q_near = q0 + 1e-9
+    q_near /= np.linalg.norm(q_near)
+    
+    q_mid = slerp(q0, q_near, 0.5)
+    assert not np.any(np.isnan(q_mid))
 #
 # 예) def test_lerp_norm_drops_below_one(q_pair):
 #         """정규화하지 않은 선형 보간의 중간값은 크기가 1 보다 작다."""
