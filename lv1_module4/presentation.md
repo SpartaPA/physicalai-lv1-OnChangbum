@@ -56,4 +56,5 @@
 - 난수 시드: `np.random.default_rng(42)`
 - 세 노트북 Restart Kernel and Run All 통과 여부: `PASS`
 - `demo.gif` 프레임 수: `60 프레임`
+
 ![demo.gif](demo.gif)
