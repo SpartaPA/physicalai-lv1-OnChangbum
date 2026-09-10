@@ -8,7 +8,8 @@
 
 ## 1. 파이프라인 전체 구조
 
-- 좌표계 체인 (base -> link -> camera -> object) 그림 또는 다이어그램: `[base] --T_base_link--> [link] --T_link_camera--> [camera] --T_camera_object--> [object]`
+- 좌표계 체인 (base -> link -> camera -> object) 그림 또는 다이어그램: `[base] --T_base_link--> [link] --T_link_camera--> [camera] --T_camera_object--> [object]` 
+      ![좌표계 체인 그림](<좌표계 체인 그림.png>)
   -   최종 합성 변환 행렬 공식: T_base_object = T_base_link @ T_link_camera @ T_camera_object
 - 각 노트북·모듈이 맡는 역할 (01 파이프라인 / 02 보간 / 03 자세 추정·시연): 
   - 01 파이프라인: 로봇팔 관절 운동에 따른 정방향 기하학 좌표계 체인 결합 구조 정의 및 배치 점군 변환 모듈화
